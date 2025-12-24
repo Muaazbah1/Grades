@@ -3,6 +3,7 @@ FROM python:3.11-slim
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE 1
 ENV PYTHONUNBUFFERED 1
+ENV PATH="/opt/venv/bin:$PATH"
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
@@ -11,13 +12,16 @@ RUN apt-get update && apt-get install -y \
     python3-dev \
     && rm -rf /var/lib/apt/lists/*
 
+# Create and use virtual environment
+RUN python -m venv /opt/venv
+
 # Set working directory
 WORKDIR /app
 
-# Copy requirements and install
+# Install dependencies into virtual environment
 COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt
+    pip install --no-cache-dir telethon pyrogram pandas matplotlib seaborn supabase flask requests python-dotenv
 
 # Copy project files
 COPY . .
@@ -29,5 +33,5 @@ RUN mkdir -p data/downloads data/charts && \
 # Expose dashboard port
 EXPOSE 5000
 
-# Run the application
+# Run the application using the virtual environment's python
 CMD ["python", "main.py"]
