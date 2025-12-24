@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Admin Dashboard - Grade System</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: Arial, sans-serif;
+            background: #f5f5f5;
+        }
+        .navbar {
+            background: #333;
+            color: white;
+            padding: 15px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .navbar h1 {
+            font-size: 24px;
+        }
+        .navbar a {
+            color: white;
+            text-decoration: none;
+            background: #667eea;
+            padding: 8px 15px;
+            border-radius: 5px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 30px auto;
+            padding: 20px;
+        }
+        .section {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+        h2 {
+            color: #333;
+            margin-bottom: 15px;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 10px;
+        }
+        input, textarea {
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-family: Arial, sans-serif;
+        }
+        button {
+            background: #667eea;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+        button:hover {
+            background: #764ba2;
+        }
+        .channel-list {
+            list-style: none;
+        }
+        .channel-item {
+            background: #f9f9f9;
+            padding: 10px;
+            margin: 10px 0;
+            border-left: 4px solid #667eea;
+            border-radius: 3px;
+        }
+        .success {
+            color: green;
+            margin-top: 10px;
+        }
+        .error {
+            color: red;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="navbar">
+        <h1>Grade System Admin</h1>
+        <a href="/logout">Logout</a>
+    </div>
+
+    <div class="container">
+        <!-- Monitored Channels Section -->
+        <div class="section">
+            <h2>Monitored Channels</h2>
+            <ul class="channel-list" id="channelList">
+                {% for channel in channels %}
+                    <li class="channel-item">
+                        <strong>{{ channel.channel_name }}</strong> (ID: {{ channel.channel_id }})
+                        <br>Link: {{ channel.channel_link }}
+                    </li>
+                {% endfor %}
+            </ul>
+            <h3>Add New Channel</h3>
+            <form id="addChannelForm">
+                <input type="number" id="channelId" placeholder="Channel ID" required>
+                <input type="text" id="channelLink" placeholder="Channel Link" required>
+                <input type="text" id="channelName" placeholder="Channel Name" required>
+                <button type="submit">Add Channel</button>
+            </form>
+            <div id="channelMessage"></div>
+        </div>
+
+        <!-- Settings Section -->
+        <div class="section">
+            <h2>Message Templates</h2>
+            <form id="settingsForm">
+                <label>Welcome Message:</label>
+                <textarea id="welcomeMessage" rows="4" placeholder="Welcome message template"></textarea>
+                
+                <label>Result Message Template:</label>
+                <textarea id="resultMessage" rows="6" placeholder="Result message template (use {subject}, {grade}, {rank}, {percentile})"></textarea>
+                
+                <button type="submit">Save Settings</button>
+            </form>
+            <div id="settingsMessage"></div>
+        </div>
+
+        <!-- Logs Section -->
+        <div class="section">
+            <h2>Processing Logs</h2>
+            <div id="logsList">
+                <p>No logs available yet.</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Load settings on page load
+        window.addEventListener('load', async () => {
+            const response = await fetch('/api/settings');
+            const settings = await response.json();
+            document.getElementById('welcomeMessage').value = settings.welcome_message || '';
+            document.getElementById('resultMessage').value = settings.result_message_template || '';
+        });
+
+        // Add channel form submission
+        document.getElementById('addChannelForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const data = {
+                channel_id: parseInt(document.getElementById('channelId').value),
+                channel_link: document.getElementById('channelLink').value,
+                channel_name: document.getElementById('channelName').value
+            };
+            
+            const response = await fetch('/api/channels', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+            
+            const result = await response.json();
+            const msg = document.getElementById('channelMessage');
+            if (result.status === 'success') {
+                msg.innerHTML = '<p class="success">Channel added successfully!</p>';
+                document.getElementById('addChannelForm').reset();
+            } else {
+                msg.innerHTML = '<p class="error">Failed to add channel.</p>';
+            }
+        });
+
+        // Settings form submission
+        document.getElementById('settingsForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const data = {
+                welcome_message: document.getElementById('welcomeMessage').value,
+                result_message_template: document.getElementById('resultMessage').value
+            };
+            
+            const response = await fetch('/api/settings', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+            
+            const result = await response.json();
+            const msg = document.getElementById('settingsMessage');
+            if (result.status === 'success') {
+                msg.innerHTML = '<p class="success">Settings saved successfully!</p>';
+            } else {
+                msg.innerHTML = '<p class="error">Failed to save settings.</p>';
+            }
+        });
+    </script>
+</body>
+</html>
