@@ -1,0 +1,17 @@
+telethon
+pyrogram
+tgcrypto
+pandas
+polars
+matplotlib
+seaborn
+supabase
+flask
+flask-login
+werkzeug
+python-dotenv
+openpyxl
+requests
+gunicorn
+psycopg2-binary
+scipy
