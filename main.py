@@ -1,5 +1,20 @@
+# --- ADVANCED PATH DIAGNOSTIC & FIX ---
 import os
 import sys
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+if BASE_DIR not in sys.path:
+    sys.path.insert(0, BASE_DIR)
+
+# أضف هذه الأسطر مؤقتاً لطباعة شكل المجلدات في الـ Logs
+print(f"DEBUG: Current Working Directory: {os.getcwd()}")
+print(f"DEBUG: BASE_DIR: {BASE_DIR}")
+print(f"DEBUG: Files in Root: {os.listdir(BASE_DIR)}")
+if os.path.exists(os.path.join(BASE_DIR, 'modules')):
+    print(f"DEBUG: Content of modules/: {os.listdir(os.path.join(BASE_DIR, 'modules'))}")
+else:
+    print("DEBUG: ❌ FOLDER 'modules' NOT FOUND IN BASE_DIR!")
+# ---------------------------------------
 
 # --- CRITICAL PATH FIX ---
 # This must be at the very top before any other imports
