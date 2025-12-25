@@ -26,8 +26,6 @@ logging.basicConfig(
 logger = logging.getLogger("TelegramOrchestrator")
 
 # --- DUMMY HEALTH CHECK SERVER ---
-# This allows the app to run as a "Web Service" on Koyeb if needed.
-# If you switch to "Worker" type in Koyeb, this is not strictly necessary.
 class HealthCheckHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
@@ -56,15 +54,16 @@ async def start_services():
         tasks = []
         
         # Add Userbot task
+        # We wrap it in a task to ensure it's awaited properly by asyncio.gather
         logger.info("Starting Userbot Listener...")
-        tasks.append(listener.start())
+        tasks.append(asyncio.create_task(listener.start()))
         
         # Add Notifier Bot task if initialized
         if bot:
             logger.info("Starting Notifier Bot...")
             # Start the bot client with the token inside the running loop
             await bot.start(bot_token=BOT_TOKEN)
-            tasks.append(bot.run_until_disconnected())
+            tasks.append(asyncio.create_task(bot.run_until_disconnected()))
         else:
             logger.error("Notifier Bot instance is None. Check API_ID/API_HASH.")
         
@@ -74,6 +73,7 @@ async def start_services():
         
     except errors.FloodWaitError as e:
         logger.error(f"CRITICAL: Telegram FloodWait detected. Must wait for {e.seconds} seconds.")
+        logger.info(f"Please manually restart the Koyeb service after {e.seconds} seconds have passed.")
         logger.info("Exiting gracefully to prevent rapid restart loop on Koyeb.")
         sys.exit(0)
     except Exception as e:
@@ -88,7 +88,6 @@ async def start_services():
 
 def main():
     # 1. Start the dummy health check server in a separate thread
-    # This ensures Koyeb sees the service as "Healthy" on port 8080
     health_thread = threading.Thread(target=run_health_check, daemon=True)
     health_thread.start()
 
