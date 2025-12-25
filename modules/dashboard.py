@@ -4,6 +4,9 @@ from werkzeug.security import check_password_hash, generate_password_hash
 from config import SECRET_KEY, ADMIN_PASSWORD
 from modules.database import db
 import os
+import logging
+
+logger = logging.getLogger("Dashboard")
 
 app = Flask(__name__, template_folder='../templates', static_folder='../static')
 app.config['SECRET_KEY'] = SECRET_KEY
@@ -44,32 +47,43 @@ def dashboard():
 @app.route('/api/channels', methods=['GET', 'POST'])
 @login_required
 def manage_channels():
-    if request.method == 'POST':
-        data = request.get_json()
-        db.supabase.table('channels').insert({
-            'channel_id': data['channel_id'],
-            'channel_link': data['channel_link'],
-            'channel_name': data['channel_name']
-        }).execute()
-        return jsonify({'status': 'success'})
-    
-    channels = db.get_monitored_channels()
-    return jsonify(channels)
+    try:
+        if request.method == 'POST':
+            data = request.get_json()
+            logger.info(f"Adding channel: {data}")
+            db.supabase.table('channels').insert({
+                'channel_id': str(data['channel_id']),
+                'channel_link': data['channel_link'],
+                'channel_name': data['channel_name'],
+                'is_active': True
+            }).execute()
+            return jsonify({'status': 'success'})
+        
+        channels = db.get_monitored_channels()
+        return jsonify(channels)
+    except Exception as e:
+        logger.error(f"API Error (channels): {e}")
+        return jsonify({'status': 'error', 'message': str(e)}), 500
 
 @app.route('/api/settings', methods=['GET', 'POST'])
 @login_required
 def manage_settings():
-    if request.method == 'POST':
-        data = request.get_json()
-        for key, value in data.items():
-            db.update_setting(key, value)
-        return jsonify({'status': 'success'})
-    
-    settings = {
-        'welcome_message': db.get_setting('welcome_message'),
-        'result_message_template': db.get_setting('result_message_template')
-    }
-    return jsonify(settings)
+    try:
+        if request.method == 'POST':
+            data = request.get_json()
+            logger.info(f"Updating settings: {data}")
+            for key, value in data.items():
+                db.update_setting(key, value)
+            return jsonify({'status': 'success'})
+        
+        settings = {
+            'welcome_message': db.get_setting('welcome_message'),
+            'result_message_template': db.get_setting('result_message_template')
+        }
+        return jsonify(settings)
+    except Exception as e:
+        logger.error(f"API Error (settings): {e}")
+        return jsonify({'status': 'error', 'message': str(e)}), 500
 
 @app.route('/health')
 def health():

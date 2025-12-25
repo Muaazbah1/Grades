@@ -56,7 +56,8 @@ class Database:
     def get_monitored_channels(self):
         if not self.supabase: return []
         try:
-            response = self.supabase.table('channels').select('*').eq('is_active', True).execute()
+            # We remove the is_active filter temporarily to ensure all channels are seen
+            response = self.supabase.table('channels').select('*').execute()
             return response.data
         except Exception as e:
             logger.error(f"Error fetching monitored channels: {e}")
@@ -74,7 +75,8 @@ class Database:
     def update_setting(self, key, value):
         if not self.supabase: return None
         try:
-            return self.supabase.table('settings').update({'value': value}).eq('key', key).execute()
+            # Use upsert instead of update to handle new settings
+            return self.supabase.table('settings').upsert({'key': key, 'value': value}).execute()
         except Exception as e:
             logger.error(f"Error updating setting {key}: {e}")
             return None
