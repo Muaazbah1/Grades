@@ -2,9 +2,12 @@ import asyncio
 import threading
 import logging
 import sys
+import os
+from telethon import errors
 from modules.listener import GradeListener
-from modules.notifier import init_bot, BOT_TOKEN
+from modules.notifier import init_bot
 from modules.dashboard import app
+from config import BOT_TOKEN
 
 # Configure logging
 logging.basicConfig(
@@ -36,12 +39,12 @@ async def start_services():
         tasks = []
         
         # Add Userbot task
-        logger.info("Preparing Userbot task...")
+        logger.info("Starting Userbot...")
         tasks.append(listener.start())
         
         # Add Notifier Bot task if initialized
         if bot_client:
-            logger.info("Preparing Notifier Bot task...")
+            logger.info("Starting Notifier Bot...")
             # Start the bot client with the token
             await bot_client.start(bot_token=BOT_TOKEN)
             tasks.append(bot_client.run_until_disconnected())
@@ -50,11 +53,17 @@ async def start_services():
         logger.info("Launching all Telegram services...")
         await asyncio.gather(*tasks)
         
+    except errors.FloodWaitError as e:
+        logger.error(f"CRITICAL: Telegram FloodWait detected. Must wait for {e.seconds} seconds.")
+        logger.info("Exiting gracefully to prevent rapid restart loop on Koyeb.")
+        # Exit with code 0 so Koyeb doesn't treat it as a crash and restart immediately
+        sys.exit(0)
     except Exception as e:
         logger.error(f"Telegram services encountered an error: {e}")
+        raise e
     finally:
         logger.info("Disconnecting clients...")
-        if listener.client:
+        if listener and listener.client:
             await listener.client.disconnect()
         if bot_client:
             await bot_client.disconnect()
@@ -66,10 +75,11 @@ def main():
 
     # 2. Run the main asyncio event loop for Telegram services
     try:
-        # This creates the loop and runs the services inside it
         asyncio.run(start_services())
     except KeyboardInterrupt:
         logger.info("System received shutdown signal (KeyboardInterrupt).")
+    except SystemExit:
+        logger.info("System exiting gracefully due to FloodWait.")
     except Exception as e:
         logger.error(f"System crash: {e}")
     finally:
