@@ -1,13 +1,17 @@
 import os
 import sys
+
+# --- CRITICAL PATH FIX ---
+# This must be at the very top before any other imports
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+if BASE_DIR not in sys.path:
+    sys.path.insert(0, BASE_DIR)
+# -------------------------
+
 import asyncio
+import threading
 import logging
-
-# Add the current directory to sys.path to ensure 'modules' is discoverable
-current_dir = os.path.dirname(os.path.abspath(__file__))
-if current_dir not in sys.path:
-    sys.path.insert(0, current_dir)
-
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from telethon import errors
 from modules.listener import GradeListener
 from modules.notifier import bot
@@ -20,6 +24,26 @@ logging.basicConfig(
     stream=sys.stdout
 )
 logger = logging.getLogger("TelegramOrchestrator")
+
+# --- DUMMY HEALTH CHECK SERVER ---
+# This allows the app to run as a "Web Service" on Koyeb if needed.
+# If you switch to "Worker" type in Koyeb, this is not strictly necessary.
+class HealthCheckHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.send_header("Content-type", "text/plain")
+        self.end_headers()
+        self.wfile.write(b"OK")
+
+    def log_message(self, format, *args):
+        return # Silent logs for health checks
+
+def run_health_check():
+    port = int(os.environ.get("PORT", 8080))
+    server = HTTPServer(("0.0.0.0", port), HealthCheckHandler)
+    logger.info(f"Health check server started on port {port}")
+    server.serve_forever()
+# ---------------------------------
 
 async def start_services():
     """Orchestrates the startup of all Telegram services within the same loop."""
@@ -51,7 +75,6 @@ async def start_services():
     except errors.FloodWaitError as e:
         logger.error(f"CRITICAL: Telegram FloodWait detected. Must wait for {e.seconds} seconds.")
         logger.info("Exiting gracefully to prevent rapid restart loop on Koyeb.")
-        # Exit with code 0 so Koyeb doesn't treat it as a crash and restart immediately
         sys.exit(0)
     except Exception as e:
         logger.error(f"Telegram services encountered an error: {e}")
@@ -64,7 +87,12 @@ async def start_services():
             await bot.disconnect()
 
 def main():
-    # Run the main asyncio event loop for Telegram services
+    # 1. Start the dummy health check server in a separate thread
+    # This ensures Koyeb sees the service as "Healthy" on port 8080
+    health_thread = threading.Thread(target=run_health_check, daemon=True)
+    health_thread.start()
+
+    # 2. Run the main asyncio event loop for Telegram services
     try:
         asyncio.run(start_services())
     except KeyboardInterrupt:
