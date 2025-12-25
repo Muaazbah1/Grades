@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Admin Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-light">
+    <nav class="navbar navbar-dark bg-dark mb-4">
+        <div class="container">
+            <span class="navbar-brand">Grade System Admin</span>
+            <a href="/logout" class="btn btn-outline-light btn-sm">Logout</a>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div class="row">
+            <div class="col-md-6">
+                <div class="card mb-4 shadow-sm">
+                    <div class="card-header">Monitored Channels</div>
+                    <div class="card-body">
+                        <ul class="list-group mb-3">
+                            {% for channel in channels %}
+                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                {{ channel.channel_name }} ({{ channel.channel_id }})
+                                <span class="badge bg-primary rounded-pill">Active</span>
+                            </li>
+                            {% endfor %}
+                        </ul>
+                        <hr>
+                        <h5>Add New Channel</h5>
+                        <div class="mb-2">
+                            <input type="text" id="channelName" class="form-control mb-1" placeholder="Channel Name">
+                            <input type="text" id="channelId" class="form-control mb-1" placeholder="Channel ID (e.g. -100...)">
+                            <input type="text" id="channelLink" class="form-control mb-1" placeholder="Channel Link">
+                            <button onclick="addChannel()" class="btn btn-success btn-sm w-100">Add Channel</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-6">
+                <div class="card mb-4 shadow-sm">
+                    <div class="card-header">System Settings</div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label class="form-label">Welcome Message</label>
+                            <textarea id="welcomeMsg" class="form-control" rows="3"></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Result Message Template</label>
+                            <textarea id="resultTemplate" class="form-control" rows="3"></textarea>
+                            <small class="text-muted">Use {subject}, {grade}, {rank}, {percentile}</small>
+                        </div>
+                        <button onclick="saveSettings()" class="btn btn-primary w-100">Save Settings</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        async function addChannel() {
+            const data = {
+                channel_name: document.getElementById('channelName').value,
+                channel_id: document.getElementById('channelId').value,
+                channel_link: document.getElementById('channelLink').value
+            };
+            const res = await fetch('/api/channels', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(data)
+            });
+            if (res.ok) location.reload();
+        }
+
+        async function saveSettings() {
+            const data = {
+                welcome_message: document.getElementById('welcomeMsg').value,
+                result_message_template: document.getElementById('resultTemplate').value
+            };
+            const res = await fetch('/api/settings', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(data)
+            });
+            if (res.ok) alert('Settings saved!');
+        }
+
+        // Load current settings
+        fetch('/api/settings').then(r => r.json()).then(data => {
+            document.getElementById('welcomeMsg').value = data.welcome_message || '';
+            document.getElementById('resultTemplate').value = data.result_message_template || '';
+        });
+    </script>
+</body>
+</html>

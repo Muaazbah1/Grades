@@ -21,7 +21,7 @@ class GradeListener:
             logger.error("TELEGRAM_API_ID or TELEGRAM_API_HASH not found.")
             return
 
-        # Initialize client inside the running loop to avoid loop mismatch
+        # Initialize client inside the running loop
         logger.info("Initializing Userbot Client...")
         self.client = TelegramClient('userbot_session', int(self.api_id), self.api_hash)
             
@@ -30,8 +30,9 @@ class GradeListener:
             await self.client.start()
         except errors.FloodWaitError as e:
             logger.warning(f"FloodWaitError: Must wait for {e.seconds} seconds")
-            await asyncio.sleep(e.seconds)
-            await self.client.start()
+            # In listener, we might want to wait or exit. 
+            # For now, let's re-raise to be caught by main.py's graceful exit
+            raise e
         except Exception as e:
             logger.error(f"Failed to start userbot: {e}")
             return
@@ -40,31 +41,32 @@ class GradeListener:
         try:
             channels_data = db.get_monitored_channels()
             self.monitored_channels = [int(c['channel_id']) for c in channels_data]
+            logger.info(f"Loaded {len(self.monitored_channels)} channels from database.")
         except Exception as e:
             logger.error(f"Failed to load monitored channels: {e}")
             self.monitored_channels = []
         
+        # Filter for documents
         @self.client.on(events.NewMessage(chats=self.monitored_channels))
         async def handler(event):
             if event.message.document:
+                file_name = event.message.file.name or "unknown_file"
                 file_ext = event.message.file.ext.lower()
+                
                 if file_ext in ['.pdf', '.xlsx', '.csv']:
-                    logger.info(f"Detected document: {event.message.file.name}")
+                    logger.info(f"New grade file detected: {file_name} in channel {event.chat_id}")
                     try:
+                        # Download the file
                         path = await event.download_media(file=DOWNLOAD_DIR)
                         logger.info(f"Downloaded to: {path}")
                         
                         # Trigger analysis engine
                         from modules.engine import process_file
-                        await process_file(path, event.chat_id)
-                    except errors.FloodWaitError as e:
-                        logger.warning(f"FloodWait during download: waiting {e.seconds}s")
-                        await asyncio.sleep(e.seconds)
+                        # We run this as a background task so the listener isn't blocked
+                        asyncio.create_task(process_file(path, event.chat_id))
+                        
                     except Exception as e:
-                        logger.error(f"Error processing file: {e}")
+                        logger.error(f"Error handling file {file_name}: {e}")
 
-        logger.info(f"Userbot is now monitoring {len(self.monitored_channels)} channels.")
-        try:
-            await self.client.run_until_disconnected()
-        except Exception as e:
-            logger.error(f"Userbot disconnected with error: {e}")
+        logger.info(f"Userbot is now monitoring {len(self.monitored_channels)} channels for documents.")
+        await self.client.run_until_disconnected()

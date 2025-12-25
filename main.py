@@ -11,10 +11,10 @@ if BASE_DIR not in sys.path:
 import asyncio
 import threading
 import logging
-from http.server import BaseHTTPRequestHandler, HTTPServer
 from telethon import errors
 from modules.listener import GradeListener
 from modules.notifier import bot
+from modules.dashboard import app
 from config import BOT_TOKEN
 
 # Configure logging
@@ -25,23 +25,15 @@ logging.basicConfig(
 )
 logger = logging.getLogger("TelegramOrchestrator")
 
-# --- DUMMY HEALTH CHECK SERVER ---
-class HealthCheckHandler(BaseHTTPRequestHandler):
-    def do_GET(self):
-        self.send_response(200)
-        self.send_header("Content-type", "text/plain")
-        self.end_headers()
-        self.wfile.write(b"OK")
-
-    def log_message(self, format, *args):
-        return # Silent logs for health checks
-
-def run_health_check():
+def run_flask():
+    """Runs the full Flask Admin Dashboard."""
     port = int(os.environ.get("PORT", 8080))
-    server = HTTPServer(("0.0.0.0", port), HealthCheckHandler)
-    logger.info(f"Health check server started on port {port}")
-    server.serve_forever()
-# ---------------------------------
+    logger.info(f"Starting Admin Dashboard on port {port}...")
+    try:
+        # We use debug=False and use_reloader=False to avoid issues in threads
+        app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False)
+    except Exception as e:
+        logger.error(f"Flask Dashboard failed: {e}")
 
 async def start_services():
     """Orchestrates the startup of all Telegram services within the same loop."""
@@ -54,7 +46,6 @@ async def start_services():
         tasks = []
         
         # Add Userbot task
-        # We wrap it in a task to ensure it's awaited properly by asyncio.gather
         logger.info("Starting Userbot Listener...")
         tasks.append(asyncio.create_task(listener.start()))
         
@@ -87,9 +78,9 @@ async def start_services():
             await bot.disconnect()
 
 def main():
-    # 1. Start the dummy health check server in a separate thread
-    health_thread = threading.Thread(target=run_health_check, daemon=True)
-    health_thread.start()
+    # 1. Start the full Flask dashboard in a separate thread
+    flask_thread = threading.Thread(target=run_flask, daemon=True)
+    flask_thread.start()
 
     # 2. Run the main asyncio event loop for Telegram services
     try:

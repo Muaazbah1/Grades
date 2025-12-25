@@ -8,37 +8,55 @@ from modules.database import db
 logger = logging.getLogger("NotifierBot")
 
 # Initialize the bot client instance without starting it
-# This prevents loop capture at the module level
 bot = None
 if API_ID and API_HASH:
     bot = TelegramClient('bot_session', int(API_ID), API_HASH)
-    logger.info("Notifier Bot instance initialized (not started).")
+    logger.info("Notifier Bot instance initialized.")
+
+# State management for registration (in-memory for simplicity)
+registration_state = {}
 
 def register_handlers(client):
     """Registers command handlers for the bot."""
+    
     @client.on(events.NewMessage(pattern='/start'))
     async def start_handler(event):
-        welcome = db.get_setting('welcome_message') or "Welcome! Please use /register <student_id> to receive your grades."
-        await event.respond(welcome)
+        if not event.is_private:
+            return
+        registration_state[event.sender_id] = 'AWAITING_ID'
+        await event.respond("Welcome! Please enter your University ID number to register for grade notifications.")
 
-    @client.on(events.NewMessage(pattern='/register (.+)'))
-    async def register_handler(event):
-        student_id = event.pattern_match.group(1).strip()
-        tg_id = event.sender_id
+    @client.on(events.NewMessage)
+    async def message_handler(event):
+        if not event.is_private or event.text.startswith('/'):
+            return
         
-        try:
-            sender = await event.get_sender()
-            full_name = f"{sender.first_name} {sender.last_name or ''}".strip()
+        sender_id = event.sender_id
+        if registration_state.get(sender_id) == 'AWAITING_ID':
+            university_id = event.text.strip()
             
-            db.supabase.table('users').upsert({
-                'student_id': student_id,
-                'tg_id': str(tg_id),
-                'full_name': full_name
-            }).execute()
-            await event.respond(f"Successfully registered Student ID: {student_id}")
-        except Exception as e:
-            logger.error(f"Registration failed for {tg_id}: {e}")
-            await event.respond(f"Registration failed. Please try again later.")
+            # Basic validation: check if it's a number
+            if not university_id.isdigit():
+                await event.respond("Invalid ID. Please enter a numeric University ID.")
+                return
+            
+            try:
+                sender = await event.get_sender()
+                full_name = f"{sender.first_name} {sender.last_name or ''}".strip()
+                
+                # Save to Supabase
+                db.supabase.table('users').upsert({
+                    'student_id': university_id,
+                    'tg_id': str(sender_id),
+                    'full_name': full_name
+                }).execute()
+                
+                registration_state.pop(sender_id, None)
+                await event.respond(f"Success! I have registered your ID: {university_id}. I will notify you as soon as a new grade file is posted.")
+                logger.info(f"User {sender_id} registered with ID {university_id}")
+            except Exception as e:
+                logger.error(f"Registration failed for {sender_id}: {e}")
+                await event.respond("Registration failed due to a database error. Please try again later.")
 
 # Register handlers immediately on the instance
 if bot:
@@ -52,7 +70,6 @@ async def notify_student(student_id, subject, grade, rank, percentile, chart_pat
 
     user = db.get_user_by_student_id(student_id)
     if not user:
-        logger.info(f"Student {student_id} not found in database. Skipping notification.")
         return
 
     tg_id = int(user['tg_id'])
@@ -66,7 +83,10 @@ async def notify_student(student_id, subject, grade, rank, percentile, chart_pat
     )
 
     try:
-        await bot.send_message(tg_id, message, file=chart_path)
+        if chart_path and os.path.exists(chart_path):
+            await bot.send_message(tg_id, message, file=chart_path)
+        else:
+            await bot.send_message(tg_id, message)
         logger.info(f"Notification sent to student {student_id} (TG: {tg_id})")
     except errors.FloodWaitError as e:
         logger.warning(f"FloodWait during notification: waiting {e.seconds}s")
