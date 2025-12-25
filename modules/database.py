@@ -1,10 +1,11 @@
 from supabase import create_client, Client
 from config import SUPABASE_URL, SUPABASE_KEY
 import logging
+import json
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("DatabaseLayer")
 
 class Database:
     def __init__(self):
@@ -22,7 +23,7 @@ class Database:
     def get_user_by_student_id(self, student_id):
         if not self.supabase: return None
         try:
-            response = self.supabase.table('users').select('*').eq('student_id', student_id).execute()
+            response = self.supabase.table('users').select('*').eq('student_id', str(student_id)).execute()
             return response.data[0] if response.data else None
         except Exception as e:
             logger.error(f"Error fetching user {student_id}: {e}")
@@ -40,14 +41,15 @@ class Database:
     def add_grade(self, student_id, subject, grade, rank, percentile, source):
         if not self.supabase: return None
         data = {
-            'student_id': student_id,
-            'subject_name': subject,
-            'grade': grade,
-            'rank': rank,
-            'percentile': percentile,
-            'file_source': source
+            'student_id': str(student_id),
+            'subject_name': str(subject),
+            'grade': float(grade),
+            'rank': int(rank),
+            'percentile': float(percentile),
+            'file_source': str(source)
         }
         try:
+            logger.info(f"DEBUG: Sending grade payload: {json.dumps(data)}")
             return self.supabase.table('grades').insert(data).execute()
         except Exception as e:
             logger.error(f"Error adding grade for {student_id}: {e}")
@@ -56,7 +58,7 @@ class Database:
     def get_monitored_channels(self):
         if not self.supabase: return []
         try:
-            # We remove the is_active filter temporarily to ensure all channels are seen
+            # Table name is 'channels' (plural)
             response = self.supabase.table('channels').select('*').execute()
             return response.data
         except Exception as e:
@@ -66,7 +68,7 @@ class Database:
     def get_setting(self, key):
         if not self.supabase: return None
         try:
-            response = self.supabase.table('settings').select('value').eq('key', key).execute()
+            response = self.supabase.table('settings').select('value').eq('key', str(key)).execute()
             return response.data[0]['value'] if response.data else None
         except Exception as e:
             logger.error(f"Error fetching setting {key}: {e}")
@@ -74,11 +76,28 @@ class Database:
 
     def update_setting(self, key, value):
         if not self.supabase: return None
+        data = {'key': str(key), 'value': str(value)}
         try:
-            # Use upsert instead of update to handle new settings
-            return self.supabase.table('settings').upsert({'key': key, 'value': value}).execute()
+            logger.info(f"DEBUG: Sending settings payload: {json.dumps(data)}")
+            # Using upsert to handle both new and existing settings
+            return self.supabase.table('settings').upsert(data).execute()
         except Exception as e:
             logger.error(f"Error updating setting {key}: {e}")
+            return None
+
+    def add_channel(self, channel_id, channel_name, channel_link):
+        if not self.supabase: return None
+        data = {
+            'channel_id': int(channel_id), # schema.sql says BIGINT
+            'channel_name': str(channel_name),
+            'channel_link': str(channel_link),
+            'is_active': True
+        }
+        try:
+            logger.info(f"DEBUG: Sending channel payload: {json.dumps(data)}")
+            return self.supabase.table('channels').insert(data).execute()
+        except Exception as e:
+            logger.error(f"Error adding channel {channel_id}: {e}")
             return None
 
 db = Database()

@@ -50,13 +50,12 @@ def manage_channels():
     try:
         if request.method == 'POST':
             data = request.get_json()
-            logger.info(f"Adding channel: {data}")
-            db.supabase.table('channels').insert({
-                'channel_id': str(data['channel_id']),
-                'channel_link': data['channel_link'],
-                'channel_name': data['channel_name'],
-                'is_active': True
-            }).execute()
+            logger.info(f"API Request to add channel: {data}")
+            db.add_channel(
+                channel_id=data['channel_id'],
+                channel_name=data['channel_name'],
+                channel_link=data['channel_link']
+            )
             return jsonify({'status': 'success'})
         
         channels = db.get_monitored_channels()
@@ -71,7 +70,7 @@ def manage_settings():
     try:
         if request.method == 'POST':
             data = request.get_json()
-            logger.info(f"Updating settings: {data}")
+            logger.info(f"API Request to update settings: {data}")
             for key, value in data.items():
                 db.update_setting(key, value)
             return jsonify({'status': 'success'})
