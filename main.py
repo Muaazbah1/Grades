@@ -5,7 +5,7 @@ import sys
 import os
 from telethon import errors
 from modules.listener import GradeListener
-from modules.notifier import init_bot
+from modules.notifier import bot
 from modules.dashboard import app
 from config import BOT_TOKEN
 
@@ -32,9 +32,6 @@ async def start_services():
     # 1. Initialize the listener (Userbot)
     listener = GradeListener()
     
-    # 2. Initialize the notification bot
-    bot_client = init_bot()
-    
     try:
         tasks = []
         
@@ -43,11 +40,13 @@ async def start_services():
         tasks.append(listener.start())
         
         # Add Notifier Bot task if initialized
-        if bot_client:
+        if bot:
             logger.info("Starting Notifier Bot...")
-            # Start the bot client with the token
-            await bot_client.start(bot_token=BOT_TOKEN)
-            tasks.append(bot_client.run_until_disconnected())
+            # Start the bot client with the token inside the running loop
+            await bot.start(bot_token=BOT_TOKEN)
+            tasks.append(bot.run_until_disconnected())
+        else:
+            logger.error("Notifier Bot instance is None. Check API_ID/API_HASH.")
         
         # Run both concurrently in the same loop
         logger.info("Launching all Telegram services...")
@@ -65,8 +64,8 @@ async def start_services():
         logger.info("Disconnecting clients...")
         if listener and listener.client:
             await listener.client.disconnect()
-        if bot_client:
-            await bot_client.disconnect()
+        if bot:
+            await bot.disconnect()
 
 def main():
     # 1. Start Flask in a separate daemon thread
